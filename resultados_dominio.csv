@@ -1,0 +1,33 @@
+tema,f1_discurso,precisao,revocacao,suporte_amostra
+Direito e Defesa do Consumidor,1.0,1.0,1.0,5
+Relações Internacionais e Comércio Exterior,0.815,0.688,1.0,11
+Economia,0.721,0.689,0.756,41
+"Viação, Transporte e Mobilidade",0.72,0.6,0.9,10
+Turismo,0.714,0.556,1.0,5
+Meio Ambiente e Desenvolvimento Sustentável,0.71,0.647,0.786,14
+Direito Penal e Processual Penal,0.704,0.576,0.905,21
+Comunicações,0.7,0.583,0.875,8
+Educação,0.667,0.625,0.714,14
+Trabalho e Emprego,0.652,0.682,0.625,24
+"Agricultura, Pecuária, Pesca e Extrativismo",0.643,0.562,0.75,12
+"Energia, Recursos Hídricos e Minerais",0.625,0.556,0.714,7
+Finanças Públicas e Orçamento,0.62,0.524,0.759,29
+Defesa e Segurança,0.619,0.481,0.867,15
+Saúde,0.595,0.733,0.5,22
+Previdência e Assistência Social,0.571,0.5,0.667,9
+Esporte e Lazer,0.571,0.5,0.667,6
+Direitos Humanos e Minorias,0.545,0.382,0.955,22
+"Arte, Cultura e Religião",0.526,0.385,0.833,6
+Estrutura Fundiária,0.5,0.5,0.5,6
+"Política, Partidos e Eleições",0.483,0.323,0.955,22
+Direito Constitucional,0.441,0.382,0.52,25
+"Indústria, Comércio e Serviços",0.432,0.333,0.615,13
+Processo Legislativo e Atuação Parlamentar,0.426,0.333,0.588,17
+Administração Pública,0.389,0.264,0.737,19
+Direito e Justiça,0.364,0.227,0.909,11
+Homenagens e Datas Comemorativas,0.324,0.194,1.0,6
+"Ciência, Tecnologia e Inovação",0.3,0.2,0.6,5
+Cidades e Desenvolvimento Urbano,0.211,0.154,0.333,6
+Direito Civil e Processual Civil,0.2,0.111,1.0,1
+Ciências Exatas e da Terra,0.0,0.0,0.0,0
+Ciências Sociais e Humanas,0.0,0.0,0.0,0

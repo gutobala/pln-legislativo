@@ -1,0 +1,25 @@
+# Dependencias do projeto — modelo (notebooks 01-06) + aplicacao (app_explorer.py)
+#
+# Instalacao:   pip install -r requirements.txt
+#
+# GPU (opcional): o torch padrao (CPU) ja roda tudo, inclusive o classificador.
+#   Para treinar/usar GPU, instale o torch com o build CUDA da sua placa:
+#     RTX 3060 (Ampere):    pip install torch --index-url https://download.pytorch.org/whl/cu124
+#     RTX 5050 (Blackwell): pip install torch --index-url https://download.pytorch.org/whl/cu128
+#   (confira o comando atual em https://pytorch.org/get-started)
+
+# --- Nucleo: modelo + aplicacao ---
+torch
+transformers>=4.46          # usamos eval_strategy (nome novo) no Trainer
+accelerate>=1.1.0           # exigido pelo Trainer do transformers
+scikit-learn
+pandas
+numpy
+requests
+iterative-stratification    # split estratificado multirrotulo (modulo: iterstrat)
+matplotlib
+streamlit                   # interface web (app_explorer.py)
+
+# --- Opcionais ---
+# gradio                    # apenas para app_demo.py (classificador standalone, redundante)
+# python-docx               # apenas para gerar o Relatorio_Projeto_Final.docx

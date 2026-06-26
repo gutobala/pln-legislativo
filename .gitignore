@@ -1,5 +1,20 @@
-bert_saida/
+# --- Pesados (vao para o Google Drive, nao para o Git) ---
 modelo_bertimbau/
+discursos_todos.csv
+
+# --- Intermediarios / checkpoints ---
+bert_saida/
+discursos/
+
+# --- Lixo / cache / temporarios ---
+.gradio/
+flagged/
+bert_eval_tmp/
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+
+# --- Referencia local (nao versionar) ---
 CLAUDE.md
 compass_artifact.md
 Projeto.pdf
