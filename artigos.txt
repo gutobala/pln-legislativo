@@ -1,0 +1,15 @@
+https://revistatopicos.com.br/artigos/parlamentares-no-tiktok-estrategias-emocionais-de-comunicacao-e-representacao-na-57-legislatura-brasileira
+
+
+MELHOR QUE O /COMPACT 
+skill /handoff Matt Pocock (ver no youtube)
+
+
+IMPLEMENTACAO E TESTE 
+
+SCRIPT RALPH
+TESTE COM PLAYWRIGHT
+
+
+SKILL DO PROF. ALEX DE ENTREGA AUTONOMA PARA PEQUENAS FEATURES
+/simplefeature

@@ -7,10 +7,15 @@
 #     RTX 3060 (Ampere):    pip install torch --index-url https://download.pytorch.org/whl/cu124
 #     RTX 5050 (Blackwell): pip install torch --index-url https://download.pytorch.org/whl/cu128
 #   (confira o comando atual em https://pytorch.org/get-started)
+#
+# NAO instale torchvision/torchaudio: nao sao usados e conflitam com o build cu128
+#   do torch (erro "operator torchvision::nms does not exist" ao importar transformers).
+#   Se aparecer, remova com:  pip uninstall -y torchvision torchaudio
 
 # --- Nucleo: modelo + aplicacao ---
 torch
 transformers>=4.46          # usamos eval_strategy (nome novo) no Trainer
+sentencepiece               # conversao do tokenizer (slow -> fast) do BERTimbau
 accelerate>=1.1.0           # exigido pelo Trainer do transformers
 scikit-learn
 pandas

@@ -17,11 +17,31 @@ Projetos de Lei de **2023–2026** (19.354 proposições). Sem bases prontas. A 
 **manifesto** com `sha256`; o split usa semente fixa (42) → reprodutível.
 
 ## Como instalar
+Recomendado: **Python 3.12** (faixa mais estável para `torch`/`transformers`). O projeto foi
+desenvolvido em 3.14, mas use 3.12 para reproduzir sem dor de cabeça com wheels muito novos.
+
+Use um **ambiente isolado** (venv) para não misturar versões com outros projetos:
 ```bash
+python -m venv .venv
+# Windows (PowerShell):
+.venv\Scripts\Activate.ps1
+# Linux/Mac:
+source .venv/bin/activate
+
 pip install -r requirements.txt
 ```
 GPU é **opcional** (CPU roda tudo, inclusive o classificador). Para treinar em GPU, instale o
 `torch` com o build CUDA da placa (ver comentários no `requirements.txt`).
+
+> **Não instale `torchvision`/`torchaudio`** — não são usados e conflitam com o build CUDA do
+> torch. Se aparecer o erro `operator torchvision::nms does not exist` ao importar o
+> `transformers`, remova com `pip uninstall -y torchvision torchaudio`.
+
+### Teste rápido do classificador
+Depois de instalar e ter a pasta `modelo_bertimbau/` no lugar, rode o notebook
+**`07_teste_classificador.ipynb`**: ele carrega o modelo, escolhe CPU/GPU automaticamente
+(com fallback seguro) e classifica algumas ementas de exemplo — serve para confirmar que o
+ambiente está OK antes de subir a app.
 
 ## Reprodução em outra máquina (Git + Drive)
 Os dois arquivos **pesados** ficam fora do Git (no Google Drive): a pasta `modelo_bertimbau/`
@@ -34,12 +54,42 @@ Os dois arquivos **pesados** ficam fora do Git (no Google Drive): a pasta `model
 3. Instale as dependências: `python -m pip install -r requirements.txt`
 4. Suba o app: `python -m streamlit run app_explorer.py`
 
+> **Layout da pasta do modelo (atenção!).** Os arquivos (`config.json`, `tokenizer.json`,
+> `model.safetensors`, …) precisam ficar **direto** dentro de `modelo_bertimbau/`, e **não**
+> aninhados em `modelo_bertimbau/modelo_bertimbau/` (erro comum ao descompactar o zip do Drive).
+> Confira:
+> ```powershell
+> Get-ChildItem modelo_bertimbau\    # deve listar config.json, tokenizer.json, model.safetensors
+> ```
+
 Observações:
 - **Não é preciso re-treinar.** Com `modelo_bertimbau/` e `discursos_classificados.csv` presentes,
   os passos pesados (notebooks **03** e **05**) podem ser **pulados** — o resto apenas reusa.
 - Sem o `discursos_todos.csv`, o app ainda abre, mas o **texto integral do discurso** (no modal)
   fica vazio; as demais páginas funcionam com o `discursos_classificados.csv` (versionado).
 - RTX 5050 (Blackwell): instale o `torch` com CUDA 12.8 (ver `requirements.txt`); ou rode em CPU.
+  Atenção: `torch.cuda.is_available()` pode retornar `True` mas ainda assim **faltar kernel** para
+  a placa (erro `no kernel image is available`). Confira se a arquitetura aparece em
+  `torch.cuda.get_arch_list()` (Blackwell = `sm_120`). O notebook de teste já trata isso com
+  fallback automático para CPU.
+
+## Rodando no Google Colab
+O Colab evita a parte chata da GPU (ele fornece uma GPU compatível e já vem com `torch`
+instalado), mas tem armadilhas próprias:
+
+1. **Use o `requirements.txt` flexível — NÃO fixe versões de `torch`/`numpy`/`pandas`.** Como o
+   `torch` no `requirements.txt` não tem versão, o pip respeita o que o Colab já traz (com a GPU
+   funcionando). Forçar versões fixas trocaria o torch do Colab por um build CPU (perde a GPU).
+2. **Reinicie o runtime após instalar.** O `transformers>=4.46` sobe para a 5.x e o Colab pede
+   *Runtime → Restart session*. É normal — reinicie e siga.
+3. **Monte o Drive** e garanta o caminho da pasta do modelo:
+   ```python
+   from google.colab import drive; drive.mount('/content/drive')
+   # copie/link a pasta para /content/modelo_bertimbau (sem aninhar) ou ajuste o caminho no código
+   ```
+4. **A app Streamlit não abre direto no Colab** (servidor em `localhost`). Para demonstrar no
+   Colab, rode o classificador pelo notebook **`07_teste_classificador.ipynb`**; a app
+   `app_explorer.py` é para execução **local**.
 
 ## Ordem de execução (notebooks)
 | # | Notebook | O que faz | Precisa de GPU? |
@@ -52,9 +102,12 @@ Observações:
 | 6 | `02_coleta_discurso_parlamentares.ipynb` | Coleta discursos → `discursos_todos.csv` | Não |
 | 7 | `05_discursos_dominio.ipynb` | Classifica discursos (chunking) + mede domain shift | Recomendado |
 | 8 | `06_cruzamento_discurso_proposicao.ipynb` | Análise "fala vs. faz" + por partido | Não |
+| 9 | `08_analise_sentimentos.ipynb` | Sentimento dos discursos (modelo pronto) × tema/partido | Recomendado |
 
 > O fine-tuning (3) e a classificação dos discursos (7) são os passos pesados — suas saídas
 > já ficam salvas, então as fases seguintes **reusam** sem re-treinar.
+> O notebook **`07_teste_classificador.ipynb`** é um smoke test do classificador (não faz parte
+> do pipeline) e o **`08_analise_sentimentos.ipynb`** é a análise extra de sentimentos.
 
 ## Aplicação web (explorador + classificador)
 ```bash
