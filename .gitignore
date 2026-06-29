@@ -1,10 +1,10 @@
 # --- Pesados (vao para o Google Drive, nao para o Git) ---
 modelo_bertimbau/
-discursos_todos.csv
+dados/discursos_todos.csv
 
 # --- Intermediarios / checkpoints ---
 bert_saida/
-discursos/
+dados/discursos/
 
 # --- Lixo / cache / temporarios ---
 .gradio/

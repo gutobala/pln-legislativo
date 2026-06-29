@@ -4,6 +4,8 @@ Ambiente unico (Streamlit): CLASSIFICADOR DE EMENTAS + sistema de dados.
 
 Menu (barra lateral):
   - Classificador de ementas : digite/cole uma ementa e o BERTimbau preve os temas.
+  - Analise de Sentimentos   : tom dos discursos (sent_score) por partido (interativo) e por
+                               tema/heatmap tema x partido (figuras do notebook 08).
   - Parlamentares            : lista filtravel por partido; clique abre a pagina do deputado
                                (proposicoes com temas do CEDI + discursos com temas previstos).
   - Projetos de Lei          : lista filtravel por parlamentar, ano e partido; clique no PL
@@ -14,9 +16,9 @@ Como rodar:
     pip install -U streamlit pandas torch transformers scikit-learn
     streamlit run app_explorer.py
 
-Pre-requisitos na pasta: parlamentares.csv, proposicoes_temas.csv,
-proposicoes_parlamentares.csv, discursos_classificados.csv, discursos_todos.csv
-e (para o classificador) modelo_bertimbau/ + resultados_bertimbau.csv.
+Pre-requisitos na pasta: dados/parlamentares.csv, dados/proposicoes_temas.csv,
+dados/proposicoes_parlamentares.csv, dados/discursos_classificados.csv, dados/discursos_todos.csv
+e (para o classificador) modelo_bertimbau/ + dados/resultados_bertimbau.csv.
 """
 import os
 import numpy as np
@@ -28,15 +30,15 @@ st.set_page_config(page_title="Proposições e Discursos por Tema", layout="wide
 # ============================ DADOS (cache) ============================
 @st.cache_data
 def carregar():
-    parl = pd.read_csv("parlamentares.csv", sep=";", dtype=str).rename(columns={"id": "id_deputado"})
-    temas = pd.read_csv("proposicoes_temas.csv", dtype=str)[["id", "ementa", "ano", "temas"]]
-    pp = pd.read_csv("proposicoes_parlamentares.csv", sep=";", dtype=str)
+    parl = pd.read_csv("dados/parlamentares.csv", sep=";", dtype=str).rename(columns={"id": "id_deputado"})
+    temas = pd.read_csv("dados/proposicoes_temas.csv", dtype=str)[["id", "ementa", "ano", "temas"]]
+    pp = pd.read_csv("dados/proposicoes_parlamentares.csv", sep=";", dtype=str)
     props = (pp.merge(temas, left_on="proposicao_id", right_on="id", how="inner")
                .merge(parl[["id_deputado", "siglaPartido", "siglaUf"]],
                       left_on="id_autor", right_on="id_deputado", how="left"))
-    dc = pd.read_csv("discursos_classificados.csv", sep=";", dtype=str)
+    dc = pd.read_csv("dados/discursos_classificados.csv", sep=";", dtype=str)
     try:
-        dt = pd.read_csv("discursos_todos.csv", sep=";", dtype=str)
+        dt = pd.read_csv("dados/discursos_todos.csv", sep=";", dtype=str)
         if len(dt) == len(dc):
             dc["transcricao"] = dt["transcricao"].values
     except FileNotFoundError:
@@ -44,6 +46,14 @@ def carregar():
     if "transcricao" not in dc.columns:
         dc["transcricao"] = ""
     dc["transcricao"] = dc["transcricao"].fillna("")
+    # anexa o sentimento por posicao (arquivos alinhados 1:1; guarda por tamanho)
+    try:
+        _s = pd.read_csv("dados/discursos_sentimento.csv")
+        if len(_s) == len(dc):
+            dc["sent_score"] = pd.to_numeric(_s["sent_score"], errors="coerce").values
+            dc["sent_label"] = _s["sent_label"].values
+    except FileNotFoundError:
+        pass
     return parl, temas, pp, props, dc
 
 parl, temas, pp, props, dc = carregar()
@@ -60,7 +70,7 @@ def carregar_modelo():
     mod = AutoModelForSequenceClassification.from_pretrained("modelo_bertimbau")
     dev = "cuda" if torch.cuda.is_available() else "cpu"
     mod.to(dev).eval()
-    resb = pd.read_csv("resultados_bertimbau.csv")
+    resb = pd.read_csv("dados/resultados_bertimbau.csv")
     lim_map = dict(zip(resb["tema"], resb["limiar"]))
     limiares = np.array([float(lim_map.get(t, 0.5)) for t in nomes_temas])
     return tok, mod, dev, limiares
@@ -86,6 +96,12 @@ def mostrar_discurso(row):
     temas = str(row.get("temas_previstos", "")).strip()
     chips = " · ".join(f"`{t}`" for t in temas.split("|") if t) if temas and temas != "nan" else "(nenhum)"
     st.markdown("**Temas do discurso (previstos pelo BERTimbau):** " + chips)
+    sc = row.get("sent_score")
+    if pd.notna(sc):
+        sc = float(sc)
+        lab = str(row.get("sent_label", "")).strip()
+        bolinha = "🟢" if sc > 0.05 else ("🔴" if sc < -0.05 else "⚪")
+        st.markdown(f"**Sentimento:** {bolinha} {lab} (score {sc:+.2f})")
 
 @st.dialog("Projeto de Lei", width="large")
 def mostrar_projeto(pl):
@@ -285,7 +301,7 @@ def page_dashboard():
     c[3].metric("Temas", len(nomes_temas))
     st.divider()
     try:
-        comp = pd.read_csv("tabela_comparativa.csv")
+        comp = pd.read_csv("dados/tabela_comparativa.csv")
         b = comp.loc[comp["modelo"].str.contains("baseline.*ajust", case=False, regex=True), "macro_f1_sup200"]
         m = comp.loc[comp["modelo"].str.contains("BERTimbau.*ajust", case=False, regex=True), "macro_f1_sup200"]
         if len(b) and len(m):
@@ -304,9 +320,9 @@ def page_fala_faz():
     st.caption("Por deputado: quanto ele FALA de um tema (discursos) × quanto PROPÕE (PLs). "
                "Perfil normalizado, apenas temas confiáveis (do estudo de domain shift).")
     try:
-        ff = pd.read_csv("fala_vs_faz.csv")
+        ff = pd.read_csv("dados/fala_vs_faz.csv")
     except FileNotFoundError:
-        st.info("Rode 06_cruzamento_discurso_proposicao.ipynb para gerar fala_vs_faz.csv."); return
+        st.info("Rode 06_cruzamento_discurso_proposicao.ipynb para gerar dados/fala_vs_faz.csv."); return
     tema = st.selectbox("Tema", sorted(ff["tema"].unique()))
     d = ff[ff["tema"] == tema].copy()
     st.scatter_chart(d, x="share_prop", y="share_disc", height=420)
@@ -321,6 +337,87 @@ def page_fala_faz():
         st.markdown("**Propõe muito mais do que fala**")
         st.dataframe(d.sort_values("gap").head(10)[cols],
                      hide_index=True, use_container_width=True)
+
+def media_sent_por_tema(df):
+    """Explode temas_previstos e devolve a media de sent_score por tema (Series)."""
+    de = df[["temas_previstos", "sent_score"]].copy()
+    de["tema"] = de["temas_previstos"].fillna("").str.split("|")
+    de = de.explode("tema")
+    de = de[de["tema"].str.len() > 0]
+    return de.groupby("tema")["sent_score"].mean()
+
+def page_sentimentos():
+    st.title("😊 Análise de Sentimentos")
+    st.caption("Tom dos discursos por um modelo multilíngue pronto. "
+               "sent_score = P(positivo) − P(negativo) ∈ [−1, 1]. "
+               "Análise exploratória/descritiva (negativo ≈ crítico/denúncia; positivo ≈ celebratório).")
+    if "sent_score" not in dc.columns:
+        st.info("Rode 08_analise_sentimentos.ipynb para gerar dados/discursos_sentimento.csv."); return
+
+    base = dc.merge(parl[["id_deputado", "siglaPartido", "siglaUf"]], on="id_deputado", how="left")
+    base = base[base["sent_score"].notna()]
+
+    # ---- filtros (sidebar) ----
+    partidos = sorted(base["siglaPartido"].dropna().unique())
+    f_part = st.sidebar.multiselect("Partido", partidos)
+    f_tema = st.sidebar.selectbox("Tema", ["(todos)"] + nomes_temas)
+    f_nome = st.sidebar.text_input("Parlamentar (nome)")
+    f_sent = st.sidebar.multiselect("Sentimento", ["positive", "neutral", "negative"])
+    df = base
+    if f_part: df = df[df["siglaPartido"].isin(f_part)]
+    if f_tema != "(todos)": df = df[df["temas_previstos"].str.contains(f_tema, na=False, regex=False)]
+    if f_nome: df = df[df["nome_deputado"].str.contains(f_nome, case=False, na=False)]
+    if f_sent: df = df[df["sent_label"].isin(f_sent)]
+
+    if df.empty:
+        st.warning("Nenhum discurso no filtro atual."); return
+
+    # ---- metricas do filtro ----
+    c = st.columns(3)
+    c[0].metric("Discursos no filtro", f"{len(df):,}".replace(",", "."))
+    c[1].metric("Tom médio (sent_score)", f"{df['sent_score'].mean():+.3f}")
+    c[2].metric("% positivos", f"{(df['sent_label'] == 'positive').mean() * 100:.0f}%")
+
+    # ---- agregacoes ao vivo (respeitam o filtro) ----
+    g1, g2 = st.columns(2)
+    with g1:
+        st.subheader("Tom médio por partido")
+        grandes = df["siglaPartido"].value_counts().head(12).index
+        por_part = (df[df["siglaPartido"].isin(grandes)]
+                    .groupby("siglaPartido")["sent_score"].mean().sort_values())
+        if len(por_part): st.bar_chart(por_part)
+    with g2:
+        st.subheader("Tom médio por tema")
+        por_tema = media_sent_por_tema(df).sort_values()
+        if len(por_tema): st.bar_chart(por_tema)
+    st.caption("Negativo = tom mais crítico/denúncia; positivo = mais celebratório/homenagem.")
+
+    # ---- tabela de discursos (clicavel -> modal) ----
+    st.subheader("Discursos")
+    st.caption("Ordenados por data (mais recentes). Use os filtros para refinar. "
+               "Clique numa linha para abrir o discurso na íntegra, com tema e sentimento.")
+    view = (df.sort_values("data", ascending=False).head(400).reset_index(drop=True).copy())
+    view["Trecho"] = view["transcricao"].str.slice(0, 200) + "..."
+    ev = st.dataframe(
+        view[["data", "nome_deputado", "siglaPartido", "Trecho",
+              "sent_label", "sent_score", "temas_previstos"]].rename(
+            columns={"data": "Data", "nome_deputado": "Parlamentar", "siglaPartido": "Partido",
+                     "sent_label": "Sentimento", "sent_score": "Score", "temas_previstos": "Temas"}),
+        use_container_width=True, hide_index=True, height=460,
+        on_select="rerun", selection_mode="single-row", key="sent_table",
+        column_config={"Score": st.column_config.NumberColumn("Score", format="%+.2f")})
+    linhas = ev.selection.rows
+    if linhas:
+        i = linhas[0]; marca = f"sent:{i}:{view.iloc[i]['data']}"
+        if st.session_state.get("sent_marca") != marca:
+            st.session_state["sent_marca"] = marca
+            mostrar_discurso(view.iloc[i])
+
+    # ---- visao-geral: heatmap tema x partido (figura) ----
+    if os.path.exists("figuras/sentimento_tema_partido.png"):
+        with st.expander("Visão-geral: heatmap sentimento por tema × partido (figura do notebook 08)"):
+            st.image("figuras/sentimento_tema_partido.png", use_container_width=True)
+            st.caption("Verde: tom mais positivo; vermelho: mais negativo.")
 
 def page_partidos():
     st.title("🏛️ Partidos")
@@ -351,16 +448,16 @@ def page_desempenho():
     st.title("📊 Desempenho do modelo")
     try:
         st.subheader("Baseline × BERTimbau (mesmo conjunto de teste)")
-        st.dataframe(pd.read_csv("tabela_comparativa.csv"), hide_index=True, use_container_width=True)
+        st.dataframe(pd.read_csv("dados/tabela_comparativa.csv"), hide_index=True, use_container_width=True)
     except FileNotFoundError:
-        st.info("Rode 04_avaliacao.ipynb para gerar tabela_comparativa.csv.")
+        st.info("Rode 04_avaliacao.ipynb para gerar dados/tabela_comparativa.csv.")
     try:
-        rb = pd.read_csv("resultados_bertimbau.csv")[["tema", "f1", "suporte_teste"]].rename(
+        rb = pd.read_csv("dados/resultados_bertimbau.csv")[["tema", "f1", "suporte_teste"]].rename(
             columns={"f1": "F1 BERTimbau (ementa)", "suporte_teste": "Suporte"})
-        ra = pd.read_csv("resultados_baseline.csv")[["tema", "f1"]].rename(columns={"f1": "F1 baseline"})
+        ra = pd.read_csv("dados/resultados_baseline.csv")[["tema", "f1"]].rename(columns={"f1": "F1 baseline"})
         merged = rb.merge(ra, on="tema", how="left")
         try:
-            rd = pd.read_csv("resultados_dominio.csv")[["tema", "f1_discurso"]].rename(
+            rd = pd.read_csv("dados/resultados_dominio.csv")[["tema", "f1_discurso"]].rename(
                 columns={"f1_discurso": "F1 discurso (domain shift)"})
             merged = merged.merge(rd, on="tema", how="left")
         except FileNotFoundError:
@@ -382,6 +479,7 @@ if st.sidebar.button("🏠 Início", use_container_width=True): ir("dashboard")
 if st.sidebar.button("🔎 Classificador de ementas", use_container_width=True): ir("classificador")
 if st.sidebar.button("🏷️ Temas", use_container_width=True): ir("temas")
 if st.sidebar.button("⚖️ Fala vs. Faz", use_container_width=True): ir("falafaz")
+if st.sidebar.button("😊 Análise de Sentimentos", use_container_width=True): ir("sentimentos")
 if st.sidebar.button("👤 Parlamentares", use_container_width=True): ir("parlamentares")
 if st.sidebar.button("🏛️ Partidos", use_container_width=True): ir("partidos")
 if st.sidebar.button("📄 Projetos de Lei", use_container_width=True): ir("projetos")
@@ -399,6 +497,7 @@ else:
     elif view == "projetos":      page_projetos()
     elif view == "temas":         page_temas()
     elif view == "falafaz":       page_fala_faz()
+    elif view == "sentimentos":   page_sentimentos()
     elif view == "partidos":      page_partidos()
     elif view == "desempenho":    page_desempenho()
     elif view == "classificador": page_classificador()

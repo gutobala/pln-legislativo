@@ -1,137 +1,212 @@
-# Classificação de Proposições de Lei por Tema (PLN no Setor Público)
+# Classificação de Projetos de Lei por Tema com BERTimbau
+### Um estudo de *transfer learning* e *domain shift* no setor público
 
-Classificação automática **multirrótulo** de Projetos de Lei da Câmara dos Deputados por
-**tema** (32 temas), a partir da **ementa**, com **BERTimbau**. Inclui um 2º experimento de
-**domain shift** (aplicar o modelo a discursos parlamentares) e uma análise **"fala vs. faz"**.
+> Projeto Final — *Deep Learning e Processamento de Linguagem Natural* · Modalidade 2 (PLN no Setor Público)
+> Integrantes: Aliendres Souto Souza · Gustavo Salvador Ferraz Ferreira · Shenia Rocha Ladeira
 
-> Projeto Final — *Deep Learning e Processamento de Linguagem Natural* · Modalidade 2 (PLN no Setor Público).
+Este documento resume o projeto na lógica de apresentação (contexto → teoria → dados →
+metodologia → resultados → discussão → conclusão → próximos passos), ligando cada etapa
+conceitual à fase técnica correspondente do código (notebooks `01`–`06`). Para instalação e
+execução, ver o [`GUIA_EXECUCAO.md`](GUIA_EXECUCAO.md). O **relatório completo** (artigo) está em
+[`docs/Relatorio_Projeto_Final.docx`](docs/Relatorio_Projeto_Final.docx).
 
-## Resultado principal
-- Baseline TF-IDF + Regressão Logística: **macro-F1 (≥200) = 0,639**.
-- **BERTimbau (fine-tuning): macro-F1 (≥200) = 0,700** (+0,061 sobre o baseline).
-- Domain shift nos discursos: macro-F1 cai para **0,569** (com sobre-rotulação diagnosticada).
+---
 
-## Dados
-Coletados pelo próprio grupo via **API de Dados Abertos da Câmara** (`dadosabertos.camara.leg.br`),
-Projetos de Lei de **2023–2026** (19.354 proposições). Sem bases prontas. A coleta gera um
-**manifesto** com `sha256`; o split usa semente fixa (42) → reprodutível.
+## 1. Contexto: qual problema real está sendo resolvido?
 
-## Como instalar
-Recomendado: **Python 3.12** (faixa mais estável para `torch`/`transformers`). O projeto foi
-desenvolvido em 3.14, mas use 3.12 para reproduzir sem dor de cabeça com wheels muito novos.
+A Câmara dos Deputados recebe **milhares de Projetos de Lei (PLs) por ano**. Para que cidadãos,
+pesquisadores e servidores naveguem nesse volume, cada PL precisa ser organizado **por tema**
+(ex.: "Saúde", "Educação", "Meio Ambiente", "Direitos Humanos"). Hoje essa classificação é feita
+manualmente por especialistas do **Centro de Documentação e Informação (CEDI)** — trabalho
+demorado e dependente de julgamento humano.
 
-Use um **ambiente isolado** (venv) para não misturar versões com outros projetos:
-```bash
-python -m venv .venv
-# Windows (PowerShell):
-.venv\Scripts\Activate.ps1
-# Linux/Mac:
-source .venv/bin/activate
+**Pergunta do projeto:** é possível ensinar um computador a ler a **ementa** de um PL e dizer,
+sozinho, a quais temas ela pertence? Uma particularidade torna o problema mais rico: um mesmo PL
+quase sempre trata de **mais de um tema ao mesmo tempo** (em média **2,31 temas por proposição**).
+Logo, é uma tarefa de **classificação multirrótulo** — o modelo pode marcar vários temas para a
+mesma ementa.
 
-pip install -r requirements.txt
-```
-GPU é **opcional** (CPU roda tudo, inclusive o classificador). Para treinar em GPU, instale o
-`torch` com o build CUDA da placa (ver comentários no `requirements.txt`).
+**Diferencial.** Além de classificar PLs, aplicamos o modelo treinado a um texto bem diferente —
+os **discursos parlamentares** — para investigar se um modelo treinado em textos curtos (ementas)
+continua funcionando em textos longos e coloquiais (estudo de *domain shift*). Com os discursos
+rotulados, cruzamos o que cada deputado **fala** com o que de fato **propõe** em lei (a análise
+"fala vs. faz").
 
-> **Não instale `torchvision`/`torchaudio`** — não são usados e conflitam com o build CUDA do
-> torch. Se aparecer o erro `operator torchvision::nms does not exist` ao importar o
-> `transformers`, remova com `pip uninstall -y torchvision torchaudio`.
+---
 
-### Teste rápido do classificador
-Depois de instalar e ter a pasta `modelo_bertimbau/` no lugar, rode o notebook
-**`07_teste_classificador.ipynb`**: ele carrega o modelo, escolhe CPU/GPU automaticamente
-(com fallback seguro) e classifica algumas ementas de exemplo — serve para confirmar que o
-ambiente está OK antes de subir a app.
+## 2. Base teórica: quais artigos sustentam o projeto?
 
-## Reprodução em outra máquina (Git + Drive)
-Os dois arquivos **pesados** ficam fora do Git (no Google Drive): a pasta `modelo_bertimbau/`
-(~435 MB) e o `discursos_todos.csv` (~127 MB). Para reproduzir:
+**A técnica — da contagem de palavras aos Transformers.**
+- Representações clássicas por frequência de palavras (*bag-of-words*, **TF-IDF**) são boas linhas
+  de base, mas tratam palavras de forma isolada, sem capturar o contexto.
+- **Minaee et al. (2021)** revisam mais de 150 modelos de classificação textual com Deep Learning
+  (CNNs, RNNs, LSTMs, Transformers), mostrando o ganho de representações contextuais.
+- A arquitetura **Transformer (Vaswani et al., 2017)**, baseada em atenção, viabilizou o **BERT
+  (Devlin et al., 2019)** — pré-treinado em grande volume de texto e ajustável a tarefas
+  específicas (*fine-tuning*).
+- Esse é o paradigma de ***transfer learning*** em PLN, também explorado por **Howard & Ruder
+  (2018, ULMFiT)**. Para o português, **Souza, Nogueira & Lotufo (2020)** treinaram o
+  **BERTimbau** — o modelo profundo adotado aqui.
 
-1. Clone o repositório: `git clone <url-do-repo>`
-2. Baixe do Drive e coloque na **raiz do projeto** (mesma pasta dos notebooks):
-   - pasta **`modelo_bertimbau/`** — link: `<COLE O LINK DO DRIVE AQUI>`
-   - arquivo **`discursos_todos.csv`** — link: `<COLE O LINK DO DRIVE AQUI>`
-3. Instale as dependências: `python -m pip install -r requirements.txt`
-4. Suba o app: `python -m streamlit run app_explorer.py`
+**O domínio — PLN no legislativo/jurídico brasileiro.**
+- **Batista (2020)** classificou ~38 mil proposições da Câmara por área temática, mostrando a
+  relevância da organização temática para estudos de agenda legislativa.
+- **Siqueira et al. (2024)** (corpus *Ulysses Tesemõ*) e **Albuquerque et al. (2022)**
+  (*UlyssesNER-Br*) evidenciam a escassez de recursos de PLN para o domínio governamental brasileiro.
+- **Menezes-Neto & Clementino (2022)** mostram que 86% das decisões de tribunais federais
+  ultrapassam o limite de 512 tokens do BERT — o que motiva tratar explicitamente o **tamanho do
+  texto**, relevante para os discursos (longos).
+- **Zheng et al. (2023)** fundamentam o uso de **LLM como avaliadora** (*LLM-as-a-judge*), usada no
+  2º experimento; **Sechidis et al. (2011)** fundamentam a **estratificação multirrótulo** do split;
+  **Gururangan et al. (2020)** e **Rodrigues et al. (2023, Albertina)** embasam os próximos passos.
 
-> **Layout da pasta do modelo (atenção!).** Os arquivos (`config.json`, `tokenizer.json`,
-> `model.safetensors`, …) precisam ficar **direto** dentro de `modelo_bertimbau/`, e **não**
-> aninhados em `modelo_bertimbau/modelo_bertimbau/` (erro comum ao descompactar o zip do Drive).
-> Confira:
-> ```powershell
-> Get-ChildItem modelo_bertimbau\    # deve listar config.json, tokenizer.json, model.safetensors
-> ```
+---
 
-Observações:
-- **Não é preciso re-treinar.** Com `modelo_bertimbau/` e `discursos_classificados.csv` presentes,
-  os passos pesados (notebooks **03** e **05**) podem ser **pulados** — o resto apenas reusa.
-- Sem o `discursos_todos.csv`, o app ainda abre, mas o **texto integral do discurso** (no modal)
-  fica vazio; as demais páginas funcionam com o `discursos_classificados.csv` (versionado).
-- RTX 5050 (Blackwell): instale o `torch` com CUDA 12.8 (ver `requirements.txt`); ou rode em CPU.
-  Atenção: `torch.cuda.is_available()` pode retornar `True` mas ainda assim **faltar kernel** para
-  a placa (erro `no kernel image is available`). Confira se a arquitetura aparece em
-  `torch.cuda.get_arch_list()` (Blackwell = `sm_120`). O notebook de teste já trata isso com
-  fallback automático para CPU.
+## 3. Dados: como foram obtidos?
 
-## Rodando no Google Colab
-O Colab evita a parte chata da GPU (ele fornece uma GPU compatível e já vem com `torch`
-instalado), mas tem armadilhas próprias:
+**Coleta própria, sem base pronta.** Restrição do projeto: os dados devem ser coletados pelo
+grupo. Usamos a **API pública de Dados Abertos da Câmara** (`dadosabertos.camara.leg.br`) — sem
+chave, sem login. O rótulo (tema do CEDI) vem **junto com a ementa** na própria listagem, sem
+anotação manual nossa.
 
-1. **Use o `requirements.txt` flexível — NÃO fixe versões de `torch`/`numpy`/`pandas`.** Como o
-   `torch` no `requirements.txt` não tem versão, o pip respeita o que o Colab já traz (com a GPU
-   funcionando). Forçar versões fixas trocaria o torch do Colab por um build CPU (perde a GPU).
-2. **Reinicie o runtime após instalar.** O `transformers>=4.46` sobe para a 5.x e o Colab pede
-   *Runtime → Restart session*. É normal — reinicie e siga.
-3. **Monte o Drive** e garanta o caminho da pasta do modelo:
-   ```python
-   from google.colab import drive; drive.mount('/content/drive')
-   # copie/link a pasta para /content/modelo_bertimbau (sem aninhar) ou ajuste o caminho no código
-   ```
-4. **A app Streamlit não abre direto no Colab** (servidor em `localhost`). Para demonstrar no
-   Colab, rode o classificador pelo notebook **`07_teste_classificador.ipynb`**; a app
-   `app_explorer.py` é para execução **local**.
+> **Fase técnica — `01_coleta_dados.ipynb`.** Baixa todos os PLs de **2023–2026** (sem teto),
+> junta os temas por proposição e salva `dados/proposicoes_temas.csv` + um **manifesto** com data,
+> parâmetros e a impressão digital **SHA-256** do arquivo (coleta reprodutível).
 
-## Ordem de execução (notebooks)
-| # | Notebook | O que faz | Precisa de GPU? |
-|---|----------|-----------|-----------------|
-| 1 | `01_coleta_dados.ipynb` | Coleta PLs + temas → `proposicoes_temas.csv` + manifesto | Não |
-| 2 | `02_baseline_tfidf.ipynb` | Baseline TF-IDF + LogReg; cria o split estratificado | Não |
-| 3 | `03_bertimbau.ipynb` | Fine-tuning do BERTimbau → `modelo_bertimbau/` | **Sim** |
-| 4 | `04_avaliacao.ipynb` | Tabela comparativa, matriz de confusão, exemplos | Não |
-| 5 | `02_coleta_proposicoes_parlamentares.ipynb` | Liga PL → deputado autor | Não |
-| 6 | `02_coleta_discurso_parlamentares.ipynb` | Coleta discursos → `discursos_todos.csv` | Não |
-| 7 | `05_discursos_dominio.ipynb` | Classifica discursos (chunking) + mede domain shift | Recomendado |
-| 8 | `06_cruzamento_discurso_proposicao.ipynb` | Análise "fala vs. faz" + por partido | Não |
-| 9 | `08_analise_sentimentos.ipynb` | Sentimento dos discursos (modelo pronto) × tema/partido | Recomendado |
+**Volume e formato.**
+- **19.354 proposições**, cada uma com seus temas oficiais.
+- **X (entrada):** a **ementa** (texto curto). **y (rótulo):** o conjunto de temas, dentre os **32
+  temas oficiais** da Câmara. Cardinalidade média **2,31 temas/PL** → multirrótulo.
 
-> O fine-tuning (3) e a classificação dos discursos (7) são os passos pesados — suas saídas
-> já ficam salvas, então as fases seguintes **reusam** sem re-treinar.
-> O notebook **`07_teste_classificador.ipynb`** é um smoke test do classificador (não faz parte
-> do pipeline) e o **`08_analise_sentimentos.ipynb`** é a análise extra de sentimentos.
+**Decisão: usar só a ementa.** Não usamos *keywords* (são indexação do próprio CEDI → risco de
+**vazamento**) nem o PDF integral (caro, dilui o sinal do tema, esbarra no limite de 512 tokens).
 
-## Aplicação web (explorador + classificador)
-```bash
-python -m streamlit run app_explorer.py
-```
-Abre em `http://localhost:8501`. Menu:
-- **Classificador de ementas** — digite uma ementa, o BERTimbau prevê os temas.
-- **Parlamentares** — lista filtrável por partido; clique abre a página do deputado
-  (proposições com temas do CEDI + discursos com temas previstos).
-- **Projetos de Lei** — filtra por parlamentar/ano/partido/tema; selecione a linha para ver
-  ementa + temas + autores (com links).
+**Limitação central — cauda longa.** Dos 32 temas, **28 têm suporte ≥ 200** e **4 são raríssimos**
+(Ciências Exatas=5, Ciências Sociais=11, Processo Legislativo=75, Direito Constitucional=84) —
+quase impossíveis de aprender (F1 ≈ 0). Tratado de forma transparente na métrica (dois cortes).
 
-## Relatório
-`Relatorio_Projeto_Final.docx` — relatório completo (com a arquitetura, resultados e figuras).
+---
 
-## Estrutura (principais arquivos)
-- Notebooks `01`–`06` (acima) · `app_explorer.py` (app) · `requirements.txt`
-- Dados: `proposicoes_temas.csv`, `particao_treino_val_teste.csv`, `proposicoes_parlamentares.csv`,
-  `discursos_todos.csv`, `discursos_classificados.csv`
-- Resultados: `resultados_baseline.csv`, `resultados_bertimbau.csv`, `resultados_dominio.csv`,
-  `tabela_comparativa.csv`, `fala_vs_faz.csv`, `figuras/*.png`
-- Modelo treinado: `modelo_bertimbau/` (≈435 MB — fora do Git; compartilhar à parte)
+## 4. Metodologia: qual modelo de PLN foi aplicado?
 
-## Notas de reprodutibilidade
-- Split salvo em `particao_treino_val_teste.csv` (semente 42), reutilizado por todos os modelos.
-- Limiar por tema ajustado **na validação** e aplicado aos dois modelos (comparação justa).
-- O gabarito dos discursos foi gerado por LLM (`gabarito_llm.json`) — avaliação do domain shift.
+**Pré-processamento.** Os rótulos viram uma matriz **multi-hot** de 32 colunas
+(`MultiLabelBinarizer`): 1 nos temas presentes, 0 nos demais.
+
+**Split 70/15/15 com estratificação iterativa.** Como o problema é multirrótulo e desbalanceado,
+usamos `MultilabelStratifiedShuffleSplit` (Sechidis et al., 2011) para preservar a proporção dos
+temas nas três partições. Semente **42**, salvo em `dados/particao_treino_val_teste.csv` e reusado por
+todos os modelos (comparação justa). Tamanhos: **treino 13.556 · validação 2.907 · teste 2.891**.
+
+**Modelo de referência (baseline) — `02_baseline_tfidf.ipynb`.**
+- **TF-IDF** com **unigramas e bigramas** (`ngram_range=(1,2)`) e remoção de termos raros
+  (`min_df=5`); sem limite de atributos.
+- **Regressão Logística** *one-vs-rest* (`OneVsRestClassifier`): um classificador Sim/Não por tema,
+  com `class_weight='balanced'`. Roda em CPU em 1–2 min. É a "régua".
+
+**Modelo profundo — `03_bertimbau.ipynb`.**
+- **BERTimbau** (`neuralmind/bert-base-portuguese-cased`), `problem_type="multi_label_classification"`.
+- **32 saídas** com **sigmoide** (probabilidades independentes → vários temas ao mesmo tempo) e
+  perda **BCEWithLogitsLoss** — o que torna a tarefa de fato multirrótulo (vs. softmax, que força
+  um único rótulo).
+- **`max_length=192`** (mediana das ementas = 45 tokens, p99 = 135) → cobre o p99 com folga e corta
+  só **0,16%** das ementas.
+- Hiperparâmetros: `batch=16`, `warmup_ratio=0,1`, `weight_decay=0,01`, até **6 épocas** com
+  *early stopping* pela validação. **Sweep de learning rate** (macro-F1 ≥200 na validação):
+  **2e-5 → 0,638 · 3e-5 → 0,677 · 5e-5 → 0,698 (escolhido)**. Treino em GPU (RTX 3060).
+
+**Limiar por tema e métrica.**
+- Em vez de 0,50 fixo, para cada tema escolhe-se o limiar que **maximiza o F1 na validação**
+  (grade 0,05–0,95, passo 0,05; *fallback* 0,50 para temas sem F1 positivo), aplicado no teste.
+  Mesma técnica nos dois modelos.
+- **Métrica principal: macro-F1**, reportado em **dois cortes** — sobre os 32 temas (número "duro")
+  e sobre os temas com suporte **≥ 200** (número "justo", sem o ruído da cauda longa). Também
+  **micro-F1**.
+- *`pos_weight`* na perda foi **considerado e não adotado** (o ajuste de limiar já trata o
+  desbalanceamento; pesos altos desestabilizariam o treino) → trabalho futuro.
+
+---
+
+## 5. Resultados: principais métricas e achados
+
+**Experimento principal — BERTimbau supera o baseline** (mesmo teste, limiar ajustado por tema):
+
+| Modelo | macro-F1 (32) | macro-F1 (≥200) | micro-F1 |
+|---|---|---|---|
+| Baseline TF-IDF (limiar 0,50) | 0,567 | 0,620 | 0,650 |
+| Baseline TF-IDF (limiar ajustado) | 0,584 | 0,639 | 0,675 |
+| BERTimbau (limiar 0,50) | 0,601 | 0,687 | 0,724 |
+| **BERTimbau (limiar ajustado)** | **0,632** | **0,700** | **0,723** |
+
+No corte mais justo (≥200), o **BERTimbau atinge 0,700 contra 0,639 do baseline (+0,061)**. O ganho
+é **modesto** porque a ementa é curta e cheia de palavras-chave — cenário em que o TF-IDF já é forte.
+Saídas: `dados/resultados_baseline.csv`, `dados/resultados_bertimbau.csv`, `dados/tabela_comparativa.csv`, e as figuras
+de matriz de confusão e suporte por tema (`04_avaliacao.ipynb`).
+
+**Segundo experimento — *domain shift* nos discursos** (`05_discursos_dominio.ipynb`).
+Coletamos os autores das PLs (vínculo **88,2%**) e **46.683 discursos de 488 deputados**
+(`02_coleta_*`). Aplicamos o BERTimbau aos discursos via **chunking** (janelas de 192 tokens,
+agregadas por **máximo**). Gabarito de **120 discursos** rotulado por **LLM** (Zheng et al., 2023).
+- **macro-F1 (≥200) cai de 0,700 (ementas) para 0,569 (discursos).** Queda real e mensurável.
+- Mecanismo: **sobre-rotulação** — o modelo marca **5,92 temas/discurso** vs. **3,43** do gabarito
+  (revocação alta, precisão baixa), por causa da agregação por máximo + limiares calibrados em
+  textos curtos.
+
+**Diferencial — "fala vs. faz"** (`06_cruzamento_discurso_proposicao.ipynb`).
+Para cada deputado, dois perfis temáticos normalizados (somam 100%): **agenda discursiva** (fala) ×
+**agenda legislativa** (propõe), restrito aos ~20 temas que transferiram bem (F1 ≥ 0,50). Exemplos:
+fala muito mais do que propõe (Pastor Eurico em "Arte, Cultura e Religião"); propõe muito mais do
+que fala (Altineu Côrtes em "Direito Penal"). Boa **validação de face**.
+
+---
+
+## 6. Discussão: o modelo resolveu o problema? Quais os limites?
+
+**Utilidade.** Um macro-F1 de **0,70** nas ementas não substitui o especialista, mas serve de
+**ferramenta de apoio**: sugere temas para conferência humana, organiza buscas e produz estatísticas
+agregadas confiáveis nos temas bem representados.
+
+**Limitações e vieses.**
+1. **Cauda longa:** 4 temas raros com F1 ≈ 0 (daí os dois cortes de métrica).
+2. **Teto de rótulo:** os rótulos do CEDI são subjetivos (anotadores podem discordar) → teto natural.
+3. **Domain shift / sobre-rotulação:** rótulos de discurso individuais são ruidosos → toda a análise
+   "fala vs. faz" é **agregada** e só nos temas confiáveis.
+4. **Cobertura:** vínculo PL→autor cobre 88% (só deputados atuais).
+5. **Gabarito por LLM:** validado por amostragem, mas herda vieses da LLM.
+6. **Natureza:** o cruzamento é **exploratório/descritivo**, não causal.
+
+**Risco.** Classificação automática sem supervisão poderia rotular leis erradas em decisões
+sensíveis → manter **humano no circuito**. **LGPD:** todos os dados são públicos.
+
+---
+
+## 7. Conclusão: principal contribuição
+
+Construímos um **pipeline completo e reprodutível**: coleta própria via API → baseline honesto →
+modelo profundo (BERTimbau) que o supera → avaliação crítica. O número não é um fim: significa uma
+**ferramenta de apoio** à organização temática do trabalho legislativo. A contribuição central está
+no **2º experimento** — transferir o modelo para os discursos (*domain shift*) e cruzar "fala vs.
+faz", conectando o modelo ao mundo real e exercitando, na prática, a diferença entre **transfer
+learning** (a técnica) e **domain shift** (o problema de mudar de domínio).
+
+---
+
+## 8. Próximos passos: como aprimorar ou aplicar em escala?
+
+- **Reduzir a sobre-rotulação:** trocar a agregação por **máximo** pela **média**, ou **recalibrar
+  os limiares** nos próprios discursos.
+- **Adaptação de domínio** (*domain-adaptive pretraining*, Gururangan et al., 2020): continuar o
+  pré-treino do BERTimbau nos discursos, de forma não supervisionada, para reduzir o *domain shift*.
+- **Modelo mais robusto:** testar o **Albertina PT-BR** (Rodrigues et al., 2023).
+- **Tratar a cauda longa:** `pos_weight` na BCE (com *cap* nos temas ultra-raros) ou coleta de mais
+  exemplos dos temas raros.
+- **Escala/aplicação:** integrar como sugestão de temas no fluxo do CEDI (humano no circuito) e
+  ampliar a análise política (séries temporais, comissões, ex-deputados).
+
+---
+
+### Referências (resumo)
+Batista (2020) · Vaswani et al. (2017) · Devlin et al. (2019) · Howard & Ruder (2018) ·
+Souza, Nogueira & Lotufo (2020, BERTimbau) · Minaee et al. (2021) · Sechidis et al. (2011) ·
+Siqueira et al. (2024, Ulysses Tesemõ) · Albuquerque et al. (2022, UlyssesNER-Br) ·
+Menezes-Neto & Clementino (2022) · Zheng et al. (2023) · Gururangan et al. (2020) ·
+Rodrigues et al. (2023, Albertina). Lista completa em [`docs/Relatorio_Projeto_Final.docx`](docs/Relatorio_Projeto_Final.docx).

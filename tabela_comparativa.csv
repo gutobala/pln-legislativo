@@ -1,5 +1,0 @@
-modelo,macro_f1_32,macro_f1_sup200,micro_f1
-"baseline (0,50)",0.567,0.62,0.65
-baseline (ajustado),0.584,0.639,0.675
-"BERTimbau (0,50)",0.601,0.687,0.724
-BERTimbau (ajustado),0.632,0.7,0.723
