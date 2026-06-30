@@ -16,7 +16,8 @@ Classificação automática **multirrótulo** de Projetos de Lei da Câmara dos 
 ## Dados
 Coletados pelo próprio grupo via **API de Dados Abertos da Câmara** (`dadosabertos.camara.leg.br`),
 Projetos de Lei de **2023–2026** (19.354 proposições). Sem bases prontas. A coleta gera um
-**manifesto** com `sha256`; o split usa semente fixa (42) → reprodutível.
+**manifesto** com `sha256`; o split usa semente fixa (42) → reprodutível. Toda a coleta é feita
+pelo `01_coleta_dados.ipynb` (4 seções) e **todos os artefatos de dados ficam na pasta `dados/`**.
 
 ## Como instalar
 Recomendado: **Python 3.12** (faixa mais estável para `torch`/`transformers`). O projeto foi
@@ -46,15 +47,25 @@ Depois de instalar e ter a pasta `modelo_bertimbau/` no lugar, rode o notebook
 ambiente está OK antes de subir a app.
 
 ## Reprodução em outra máquina (Git + Drive)
-Os dois arquivos **pesados** ficam fora do Git (no Google Drive): a pasta `modelo_bertimbau/`
-(~435 MB) e o `dados/discursos_todos.csv` (~127 MB). Para reproduzir:
+**Toda a camada de dados fica na pasta `dados/`** (CSVs, gabarito, manifesto e a subpasta
+`dados/discursos/`). Só **dois** itens pesados ficam fora do Git, no Google Drive: a pasta
+`modelo_bertimbau/` (~435 MB) e o arquivo `discursos_todos.csv` (~127 MB). Para reproduzir:
 
 1. Clone o repositório: `git clone <url-do-repo>`
-2. Baixe do Drive e coloque na **raiz do projeto** (mesma pasta dos notebooks):
-   - pasta **`modelo_bertimbau/`** — link: `https://drive.google.com/drive/folders/1xPtGB7ffuFGXfDUZGokpLQogRAC_kNQt?usp=sharing` 
-   - arquivo **`dados/discursos_todos.csv`** — link: `https://drive.google.com/drive/folders/1xPtGB7ffuFGXfDUZGokpLQogRAC_kNQt?usp=sharing`
+2. Baixe do Drive e coloque **cada um no seu lugar** (atenção ao destino):
+   - pasta **`modelo_bertimbau/`** → na **raiz do projeto** (mesma pasta dos notebooks).
+     Link: `https://drive.google.com/drive/folders/1xPtGB7ffuFGXfDUZGokpLQogRAC_kNQt?usp=sharing`
+   - arquivo **`discursos_todos.csv`** → **dentro da pasta `dados/`**, ficando como
+     **`dados/discursos_todos.csv`** (NÃO em `dados/discursos/` — essa subpasta é a coleta por deputado).
+     Link: `https://drive.google.com/drive/folders/1xPtGB7ffuFGXfDUZGokpLQogRAC_kNQt?usp=sharing`
 3. Instale as dependências: `python -m pip install -r requirements.txt`
 4. Suba o app: `python -m streamlit run app_explorer.py`
+
+> **O resto de `dados/` é versionado** (vai junto no clone) — inclusive
+> `dados/discursos_classificados.csv` e `dados/discursos_sentimento.csv`. Por isso as páginas do
+> app (incluindo **Análise de Sentimentos**) funcionam logo após o clone, sem re-rodar notebooks.
+> Fora do Git ficam apenas: `modelo_bertimbau/` e `dados/discursos_todos.csv` (Drive) e a subpasta
+> `dados/discursos/` (intermediária, regenerável pelo `01`).
 
 > **Layout da pasta do modelo (atenção!).** Os arquivos (`config.json`, `tokenizer.json`,
 > `model.safetensors`, …) precisam ficar **direto** dentro de `modelo_bertimbau/`, e **não**
@@ -96,42 +107,56 @@ instalado), mas tem armadilhas próprias:
 ## Ordem de execução (notebooks)
 | # | Notebook | O que faz | Precisa de GPU? |
 |---|----------|-----------|-----------------|
-| 1 | `01_coleta_dados.ipynb` | Coleta PLs + temas → `dados/proposicoes_temas.csv` + manifesto | Não |
+| 1 | `01_coleta_dados.ipynb` | **Coleta tudo (4 seções):** PLs+temas, parlamentares, autores das PLs e discursos → `dados/proposicoes_temas.csv`, `dados/temas.csv`, `dados/parlamentares.csv`, `dados/proposicoes_parlamentares.csv`, `dados/discursos_todos.csv` (+ manifesto) | Não |
 | 2 | `02_baseline_tfidf.ipynb` | Baseline TF-IDF + LogReg; cria o split estratificado | Não |
 | 3 | `03_bertimbau.ipynb` | Fine-tuning do BERTimbau → `modelo_bertimbau/` | **Sim** |
 | 4 | `04_avaliacao.ipynb` | Tabela comparativa, matriz de confusão, exemplos | Não |
-| 5 | `02_coleta_proposicoes_parlamentares.ipynb` | Liga PL → deputado autor | Não |
-| 6 | `02_coleta_discurso_parlamentares.ipynb` | Coleta discursos → `dados/discursos_todos.csv` | Não |
-| 7 | `05_discursos_dominio.ipynb` | Classifica discursos (chunking) + mede domain shift | Recomendado |
-| 8 | `06_cruzamento_discurso_proposicao.ipynb` | Análise "fala vs. faz" + por partido | Não |
-| 9 | `08_analise_sentimentos.ipynb` | Sentimento dos discursos (modelo pronto) × tema/partido | Recomendado |
+| 5 | `05_discursos_dominio.ipynb` | Classifica discursos (chunking) + mede domain shift | Recomendado |
+| 6 | `06_cruzamento_discurso_proposicao.ipynb` | Análise "fala vs. faz" + por partido | Não |
+| 7 | `08_analise_sentimentos.ipynb` | Sentimento dos discursos (modelo pronto) × tema/partido → `dados/discursos_sentimento.csv` + `figuras/sentimento_*.png` | Recomendado |
 
-> O fine-tuning (3) e a classificação dos discursos (7) são os passos pesados — suas saídas
+> Toda a **coleta** foi unificada no `01_coleta_dados.ipynb` (antes havia notebooks `02_coleta_*`
+> separados, já removidos).
+> O fine-tuning (3) e a classificação dos discursos (5) são os passos pesados — suas saídas
 > já ficam salvas, então as fases seguintes **reusam** sem re-treinar.
 > O notebook **`07_teste_classificador.ipynb`** é um smoke test do classificador (não faz parte
-> do pipeline) e o **`08_analise_sentimentos.ipynb`** é a análise extra de sentimentos.
+> do pipeline).
 
 ## Aplicação web (explorador + classificador)
 ```bash
 python -m streamlit run app_explorer.py
 ```
 Abre em `http://localhost:8501`. Menu:
+- **Início** — painel com números gerais e o resultado principal (baseline × BERTimbau).
 - **Classificador de ementas** — digite uma ementa, o BERTimbau prevê os temas.
+- **Temas** — resumo por tema (nº de proposições e de discursos).
+- **Fala vs. Faz** — por deputado: quanto FALA de um tema × quanto PROPÕE (perfil normalizado).
+- **Análise de Sentimentos** — tom dos discursos (`sent_score`); filtros por partido, tema e
+  parlamentar; tabela de discursos clicável com **modal** mostrando texto + temas + sentimento;
+  agregações ao vivo por partido e por tema (+ heatmap tema × partido).
 - **Parlamentares** — lista filtrável por partido; clique abre a página do deputado
   (proposições com temas do CEDI + discursos com temas previstos).
+- **Partidos** — perfil temático do partido (fala × propõe) e seus deputados.
 - **Projetos de Lei** — filtra por parlamentar/ano/partido/tema; selecione a linha para ver
   ementa + temas + autores (com links).
+- **Desempenho do modelo** — tabela comparativa, F1 por tema e figuras (matriz de confusão, cauda longa).
 
 ## Relatório
 [`docs/Relatorio_Projeto_Final.docx`](docs/Relatorio_Projeto_Final.docx) — relatório completo (com a arquitetura, resultados e figuras).
 
 ## Estrutura (principais arquivos)
-- Notebooks `01`–`06` (acima) · `app_explorer.py` (app) · `requirements.txt`
-- Dados: `dados/proposicoes_temas.csv`, `dados/particao_treino_val_teste.csv`, `dados/proposicoes_parlamentares.csv`,
-  `dados/discursos_todos.csv`, `dados/discursos_classificados.csv`
-- Resultados: `dados/resultados_baseline.csv`, `dados/resultados_bertimbau.csv`, `dados/resultados_dominio.csv`,
-  `dados/tabela_comparativa.csv`, `dados/fala_vs_faz.csv`, `figuras/*.png`
-- Modelo treinado: `modelo_bertimbau/` (≈435 MB — fora do Git; compartilhar à parte)
+- Notebooks `01`–`08` (acima) · `app_explorer.py` (app) · `requirements.txt`
+- Documentação: `README.md` (visão geral), `GUIA_EXECUCAO.md` (este guia), `docs/Relatorio_Projeto_Final.docx`
+- **`dados/`** — camada de dados unificada:
+  - Entrada/coleta: `proposicoes_temas.csv`, `temas.csv`, `parlamentares.csv`,
+    `proposicoes_parlamentares.csv`, `particao_treino_val_teste.csv`,
+    `discursos_todos.csv` (Drive), `discursos_classificados.csv`, `discursos_sentimento.csv`,
+    subpasta `discursos/` (coleta por deputado)
+  - Gabarito do domain shift: `gabarito_amostra.csv`, `gabarito_idx.npy`, `gabarito_Y.npy`, `gabarito_llm.json`
+  - Resultados: `resultados_baseline.csv`, `resultados_bertimbau.csv`, `resultados_dominio.csv`,
+    `tabela_comparativa.csv`, `fala_vs_faz.csv`
+- Figuras: `figuras/*.png` (matriz de confusão, suporte por tema, fala-vs-faz, heatmaps e `sentimento_*.png`)
+- Modelo treinado: `modelo_bertimbau/` (≈435 MB — fora do Git, no Drive; vai na raiz)
 
 ## Notas de reprodutibilidade
 - Split salvo em `dados/particao_treino_val_teste.csv` (semente 42), reutilizado por todos os modelos.

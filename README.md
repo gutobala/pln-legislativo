@@ -5,10 +5,14 @@
 > Integrantes: Aliendres Souto Souza · Gustavo Salvador Ferraz Ferreira · Shenia Rocha Ladeira
 
 Este documento resume o projeto na lógica de apresentação (contexto → teoria → dados →
-metodologia → resultados → discussão → conclusão → próximos passos), ligando cada etapa
-conceitual à fase técnica correspondente do código (notebooks `01`–`06`). Para instalação e
+metodologia → resultados → **segundo experimento** → **bônus: sentimentos** → discussão →
+conclusão → próximos passos), ligando cada etapa conceitual à fase técnica correspondente do
+código (notebooks `01`–`08`). Para instalação e
 execução, ver o [`GUIA_EXECUCAO.md`](GUIA_EXECUCAO.md). O **relatório completo** (artigo) está em
-[`docs/Relatorio_Projeto_Final.docx`](docs/Relatorio_Projeto_Final.docx).
+[`docs/Relatorio_Projeto_Final.docx`](docs/Relatorio_Projeto_Final.docx). Para **testar a
+classificação** de uma ementa rapidamente, use o notebook
+[`07_teste_classificador.ipynb`](07_teste_classificador.ipynb) (carrega o modelo e classifica
+exemplos) — ou a página "Classificador de ementas" no app.
 
 ---
 
@@ -36,29 +40,43 @@ rotulados, cruzamos o que cada deputado **fala** com o que de fato **propõe** e
 
 ## 2. Base teórica: quais artigos sustentam o projeto?
 
-**A técnica — da contagem de palavras aos Transformers.**
-- Representações clássicas por frequência de palavras (*bag-of-words*, **TF-IDF**) são boas linhas
-  de base, mas tratam palavras de forma isolada, sem capturar o contexto.
+**A técnica — da contagem de palavras aos Transformers** (5 referências):
+- Em abordagens clássicas, os documentos são representados pelo peso estatístico das palavras —
+  *bag-of-words* e **TF-IDF** (**Salton & Buckley, 1988**): boas linhas de base, mas que tratam as
+  palavras de forma isolada, sem capturar o contexto.
 - **Minaee et al. (2021)** revisam mais de 150 modelos de classificação textual com Deep Learning
-  (CNNs, RNNs, LSTMs, Transformers), mostrando o ganho de representações contextuais.
-- A arquitetura **Transformer (Vaswani et al., 2017)**, baseada em atenção, viabilizou o **BERT
-  (Devlin et al., 2019)** — pré-treinado em grande volume de texto e ajustável a tarefas
-  específicas (*fine-tuning*).
-- Esse é o paradigma de ***transfer learning*** em PLN, também explorado por **Howard & Ruder
-  (2018, ULMFiT)**. Para o português, **Souza, Nogueira & Lotufo (2020)** treinaram o
-  **BERTimbau** — o modelo profundo adotado aqui.
+  (CNNs, RNNs, LSTMs, Transformers), mostrando o ganho de representações contextuais sobre a
+  contagem de palavras.
+- A arquitetura **Transformer (Vaswani et al., 2017)**, baseada em atenção, modela dependências de
+  longo alcance com paralelização.
+- Sobre ela, **Devlin et al. (2019)** propuseram o **BERT** — pré-treinado em grande volume de texto
+  e ajustável a tarefas específicas (*fine-tuning*); é o paradigma de ***transfer learning*** em PLN
+  (também explorado por Howard & Ruder, 2018, com o ULMFiT).
+- Para o português, **Souza, Nogueira & Lotufo (2020)** treinaram o **BERTimbau** — o modelo
+  profundo adotado aqui.
 
-**O domínio — PLN no legislativo/jurídico brasileiro.**
+**O domínio — PLN no legislativo/jurídico brasileiro** (5 referências):
 - **Batista (2020)** classificou ~38 mil proposições da Câmara por área temática, mostrando a
   relevância da organização temática para estudos de agenda legislativa.
-- **Siqueira et al. (2024)** (corpus *Ulysses Tesemõ*) e **Albuquerque et al. (2022)**
-  (*UlyssesNER-Br*) evidenciam a escassez de recursos de PLN para o domínio governamental brasileiro.
+- **Siqueira et al. (2024)** (corpus *Ulysses Tesemõ*) evidencia a escassez de recursos de PLN para
+  o domínio jurídico e governamental brasileiro.
+- **Albuquerque et al. (2022)** (*UlyssesNER-Br*) construiu um corpus de reconhecimento de entidades
+  em documentos legislativos da Câmara, com baselines.
 - **Menezes-Neto & Clementino (2022)** mostram que 86% das decisões de tribunais federais
-  ultrapassam o limite de 512 tokens do BERT — o que motiva tratar explicitamente o **tamanho do
-  texto**, relevante para os discursos (longos).
-- **Zheng et al. (2023)** fundamentam o uso de **LLM como avaliadora** (*LLM-as-a-judge*), usada no
-  2º experimento; **Sechidis et al. (2011)** fundamentam a **estratificação multirrótulo** do split;
-  **Gururangan et al. (2020)** e **Rodrigues et al. (2023, Albertina)** embasam os próximos passos.
+  ultrapassam o limite de 512 tokens do BERT — o que motiva tratar o **tamanho do texto**, relevante
+  para os discursos (longos).
+- **Gururangan et al. (2020)** mostram que **adaptar o modelo ao domínio** (continuar o pré-treino em
+  texto do próprio domínio) melhora o desempenho — fundamento de que modelos genéricos podem não
+  capturar o vocabulário jurídico-legislativo (e base para o "próximos passos").
+
+**Fundamentos metodológicos — avaliação, validação e alternativa** (3 referências):
+- **Sechidis, Tsoumakas & Vlahavas (2011)** — **estratificação de dados multirrótulo**; base do
+  split iterativo 70/15/15 que preserva a proporção dos temas nas três partições.
+- **Zheng et al. (2023)** — **LLM como avaliadora** (*LLM-as-a-judge*): uma LLM forte concorda em
+  ~80% dos casos com avaliadores humanos, o que fundamenta o gabarito automático usado no 2º
+  experimento (domain shift).
+- **Rodrigues et al. (2023)** — **Albertina PT-***, Transformer mais robusto para o português,
+  considerado como alternativa ao BERTimbau (ver "próximos passos").
 
 ---
 
@@ -142,24 +160,65 @@ No corte mais justo (≥200), o **BERTimbau atinge 0,700 contra 0,639 do baselin
 Saídas: `dados/resultados_baseline.csv`, `dados/resultados_bertimbau.csv`, `dados/tabela_comparativa.csv`, e as figuras
 de matriz de confusão e suporte por tema (`04_avaliacao.ipynb`).
 
-**Segundo experimento — *domain shift* nos discursos** (`05_discursos_dominio.ipynb`).
-Coletamos os autores das PLs (vínculo **88,2%**) e **46.683 discursos de 488 deputados**
-(`02_coleta_*`). Aplicamos o BERTimbau aos discursos via **chunking** (janelas de 192 tokens,
-agregadas por **máximo**). Gabarito de **120 discursos** rotulado por **LLM** (Zheng et al., 2023).
+---
+
+## 6. Segundo experimento: *domain shift* nos discursos
+
+O **diferencial** do trabalho: pegar o modelo treinado nas ementas (texto curto, jurídico) e
+aplicá-lo a um domínio **bem diferente** — os **discursos parlamentares** (texto longo, oratório e
+coloquial) —, medindo o quanto ele perde (*domain shift*). Em seguida, cruzamos o que cada deputado
+**fala** com o que **propõe** ("fala vs. faz").
+
+**Domain shift** (`05_discursos_dominio.ipynb`). Coletamos os autores das PLs (vínculo **88,2%**) e
+**46.683 discursos de 488 deputados** (`01_coleta_dados.ipynb`). Aplicamos o BERTimbau aos discursos
+via **chunking** (janelas de 192 tokens, agregadas por **máximo**). Gabarito de **120 discursos**
+rotulado por **LLM** (Zheng et al., 2023).
 - **macro-F1 (≥200) cai de 0,700 (ementas) para 0,569 (discursos).** Queda real e mensurável.
 - Mecanismo: **sobre-rotulação** — o modelo marca **5,92 temas/discurso** vs. **3,43** do gabarito
   (revocação alta, precisão baixa), por causa da agregação por máximo + limiares calibrados em
   textos curtos.
 
-**Diferencial — "fala vs. faz"** (`06_cruzamento_discurso_proposicao.ipynb`).
-Para cada deputado, dois perfis temáticos normalizados (somam 100%): **agenda discursiva** (fala) ×
-**agenda legislativa** (propõe), restrito aos ~20 temas que transferiram bem (F1 ≥ 0,50). Exemplos:
-fala muito mais do que propõe (Pastor Eurico em "Arte, Cultura e Religião"); propõe muito mais do
-que fala (Altineu Côrtes em "Direito Penal"). Boa **validação de face**.
+**"Fala vs. faz"** (`06_cruzamento_discurso_proposicao.ipynb`). Para cada deputado, dois perfis
+temáticos normalizados (somam 100%): **agenda discursiva** (fala) × **agenda legislativa** (propõe),
+restrito aos ~20 temas que transferiram bem (F1 ≥ 0,50). Exemplos: fala muito mais do que propõe
+(Pastor Eurico em "Arte, Cultura e Religião"); propõe muito mais do que fala (Altineu Côrtes em
+"Direito Penal"). Boa **validação de face**.
 
 ---
 
-## 6. Discussão: o modelo resolveu o problema? Quais os limites?
+## 7. BÔNUS — Análise de Sentimentos nos discursos
+
+Uma extensão analítica: além de **sobre o quê** os deputados falam (tema), medimos **em que tom**
+(sentimento) — e cruzamos com **tema** e **partido**. Usamos um **modelo de sentimento pronto,
+multilíngue** (`lxyuan/distilbert-base-multilingual-cased-sentiments-student`), com score contínuo
+**`sent_score = P(positivo) − P(negativo)` ∈ [−1, 1]**. Notebook `08_analise_sentimentos.ipynb`.
+
+**Escala e tom geral.** Os **46.683 discursos** se distribuem em **30.373 negativos · 16.272
+positivos · 38 neutros**, com **tom médio geral −0,164** — o discurso parlamentar tende ao
+**crítico** (faz sentido: tribuna usada para denúncia e cobrança).
+
+**Por tema** (apenas os temas confiáveis do domain shift, F1 ≥ 0,50):
+- Mais **negativos**: **Direito Penal e Processual Penal (−0,51)** e **Defesa e Segurança (−0,39)** —
+  tom de denúncia/cobrança.
+- Mais **positivos**: **Turismo (+0,29)** e **Arte, Cultura e Religião (+0,07)** — tom
+  celebratório/homenagem.
+
+**Por partido.** A oposição aparece com tom mais crítico (**PL −0,35**, **PSOL −0,26**) e os mais
+positivos são **PSDB (+0,13)** e **MDB (+0,11)** — boa **validação de face** (governo × oposição).
+
+**Entregáveis.** `dados/discursos_sentimento.csv`, `figuras/sentimento_*.png` (por tema, por
+partido e heatmap tema × partido) e a página interativa **"Análise de Sentimentos"** no app
+(`app_explorer.py`): filtros por partido/tema/parlamentar, agregações ao vivo e modal com o
+sentimento de cada discurso.
+
+**Ressalvas.** Análise **exploratória/descritiva, não causal**. O modelo de sentimento é **genérico**
+e foi aplicado a **texto formal/retórico** (*domain mismatch*) — o `sent_score` capta um tom
+aproximado (**negativo ≈ crítico/denúncia**, **positivo ≈ celebratório/homenagem**), não opinião
+fina; por isso só interpretamos a fundo nos **temas confiáveis** e **no agregado**.
+
+---
+
+## 8. Discussão: o modelo resolveu o problema? Quais os limites?
 
 **Utilidade.** Um macro-F1 de **0,70** nas ementas não substitui o especialista, mas serve de
 **ferramenta de apoio**: sugere temas para conferência humana, organiza buscas e produz estatísticas
@@ -179,7 +238,7 @@ sensíveis → manter **humano no circuito**. **LGPD:** todos os dados são púb
 
 ---
 
-## 7. Conclusão: principal contribuição
+## 9. Conclusão: principal contribuição
 
 Construímos um **pipeline completo e reprodutível**: coleta própria via API → baseline honesto →
 modelo profundo (BERTimbau) que o supera → avaliação crítica. O número não é um fim: significa uma
@@ -190,7 +249,7 @@ learning** (a técnica) e **domain shift** (o problema de mudar de domínio).
 
 ---
 
-## 8. Próximos passos: como aprimorar ou aplicar em escala?
+## 10. Próximos passos: como aprimorar ou aplicar em escala?
 
 - **Reduzir a sobre-rotulação:** trocar a agregação por **máximo** pela **média**, ou **recalibrar
   os limiares** nos próprios discursos.
@@ -205,7 +264,7 @@ learning** (a técnica) e **domain shift** (o problema de mudar de domínio).
 ---
 
 ### Referências (resumo)
-Batista (2020) · Vaswani et al. (2017) · Devlin et al. (2019) · Howard & Ruder (2018) ·
+Salton & Buckley (1988) · Batista (2020) · Vaswani et al. (2017) · Devlin et al. (2019) · Howard & Ruder (2018) ·
 Souza, Nogueira & Lotufo (2020, BERTimbau) · Minaee et al. (2021) · Sechidis et al. (2011) ·
 Siqueira et al. (2024, Ulysses Tesemõ) · Albuquerque et al. (2022, UlyssesNER-Br) ·
 Menezes-Neto & Clementino (2022) · Zheng et al. (2023) · Gururangan et al. (2020) ·
