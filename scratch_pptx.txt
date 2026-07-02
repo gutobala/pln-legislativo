@@ -1,0 +1,191 @@
+======================================================================
+### SLIDE 1
+======================================================================
+[CORPO/TÍTULO]
+Classificacao Automatica de Projetos de Lei por Tema com BERTimbau
+Um estudo de Transfer Learning e Domain Shift no Setor Publico
+[CORPO/TÍTULO]
+Aliendres Souto Souza  ·  Gustavo Salvador Ferraz Ferreira  ·  Shenia Rocha Ladeira
+Modalidade 2 — Processamento de Linguagem Natural no Setor Publico
+Deep Learning e PLN  ·  Mestrado em Ciencia de Dados e Inteligencia Artificial
+[NOTAS DO APRESENTADOR]
+Bom dia/boa tarde. Vamos apresentar nosso projeto de classificacao automatica de Projetos de Lei por tema usando BERTimbau, com um segundo experimento sobre transferencia de dominio para discursos. Somos tres integrantes, modalidade PLN no setor publico. (~30s)
+
+======================================================================
+### SLIDE 2
+======================================================================
+[CORPO/TÍTULO]
+1 · CONTEXTO
+[CORPO/TÍTULO]
+Que problema real resolvemos?
+[CORPO/TÍTULO]
+•  A Câmara dos Deputados recebe milhares de Projetos de Lei (PLs) por ano.
+–  Cada PL precisa ser organizado por tema (Saúde, Educação, Meio Ambiente...) — hoje isso e feito manualmente por especialistas do CEDI.
+•  Pergunta de pesquisa:
+–  um modelo consegue ler a ementa de um PL e prever, sozinho, a quais temas ele pertence?
+•  É uma tarefa multirrótulo:
+–  um mesmo PL quase sempre trata de vários temas ao mesmo tempo (em média 2,31 temas/PL).
+•  Diferencial do trabalho:
+–  aplicar o modelo treinado em ementas também aos discursos parlamentares e cruzar o que o deputado "fala" com o que ele "faz".
+[NOTAS DO APRESENTADOR]
+O problema e concreto: o CEDI classifica manualmente um volume enorme de proposicoes. Queremos saber se da para automatizar isso lendo so a ementa. Ponto-chave: cada PL costuma ter varios temas, entao e classificacao MULTIRROTULO, nao escolha de um unico tema. E nosso diferencial e ir alem das ementas e testar nos discursos. (~1min)
+
+======================================================================
+### SLIDE 3
+======================================================================
+[CORPO/TÍTULO]
+2 · BASE TEORICA
+[CORPO/TÍTULO]
+Quais artigos sustentam o projeto?
+[CORPO/TÍTULO]
+•  A técnica — da contagem de palavras aos Transformers
+–  TF-IDF / bag-of-words (baseline clássico) → revisão de Deep Learning em texto (Minaee et al., 2021)
+–  Transformer e mecanismo de atenção (Vaswani et al., 2017) → BERT (Devlin et al., 2019)
+–  Transfer learning / ULMFiT (Howard & Ruder, 2018)
+–  BERTimbau — BERT pré-treinado em português (Souza, Nogueira & Lotufo, 2020) — modelo adotado
+•  O domínio — PLN legislativo e jurídico brasileiro
+–  Classificação de proposições por tema (Batista, 2020); corpus Ulysses / UlyssesNER-Br (Albuquerque et al., 2022)
+–  Limite de 512 tokens em textos jurídicos longos (Menezes-Neto & Clementino, 2022)
+–  Avaliação LLM-as-a-judge (Zheng et al., 2023) — usada nos discursos
+[NOTAS DO APRESENTADOR]
+Nossa fundamentacao tem dois eixos. Primeiro a tecnica: a evolucao do TF-IDF ate os Transformers, BERT e o transfer learning, chegando ao BERTimbau, que e o BERT em portugues — por isso ele foi nossa escolha. Segundo o dominio: trabalhos de PLN legislativo brasileiro, o projeto Ulysses, o problema do limite de 512 tokens em textos longos, e o LLM-as-a-judge que usamos para avaliar os discursos. (~1min)
+
+======================================================================
+### SLIDE 4
+======================================================================
+[CORPO/TÍTULO]
+3 · DADOS
+[CORPO/TÍTULO]
+Como os dados foram coletados?
+[CORPO/TÍTULO]
+•  Coleta própria via API publica de Dados Abertos da Câmara — sem base pronta de terceiros.
+–  Notebook documentado + manifesto com SHA-256 (reprodutibilidade).
+•  Recorte 2023–2026, sem teto de quantidade → 19.354 Projetos de Lei.
+•  Entrada (X): a ementa (texto curto). Rotulo (y): os 32 temas oficiais do CEDI.
+–  Rótulos vem prontos da API — sem anotação manual. Em media 2,31 temas por PL (multirrótulo).
+•  Só a ementa: palavras-chave dariam vazamento (leakage); o PDF integral e caro e dilui o tema.
+•  Limitação principal — cauda longa:
+–  28 temas com suporte ≥ 200; 4 raríssimos (Ciências Exatas = 5, Ciências Sociais = 11...).
+[NOTAS DO APRESENTADOR]
+Restricao do professor: os dados tinham que ser coletados por nos, nada de base pronta. Coletamos da API da Camara, com manifesto e hash para ser reprodutivel: 19 mil PLs de 2023 a 2026. A entrada e a ementa, o rotulo sao os 32 temas oficiais — que ja vem da API, entao nao anotamos a mao. Usamos so a ementa para evitar vazamento das palavras-chave. A grande limitacao e a cauda longa: 4 temas tem pouquissimos exemplos. (~1min)
+
+======================================================================
+### SLIDE 5
+======================================================================
+[CORPO/TÍTULO]
+4 · METODOLOGIA
+[CORPO/TÍTULO]
+Modelos e arquitetura de Deep Learning
+[CORPO/TÍTULO]
+•  Baseline (referencia):
+–  TF-IDF (1-2 gramas) + Regressão Logística one-vs-rest (class_weight balanced).
+•  Modelo profundo:
+–  fine-tuning do BERTimbau (bert-base-portuguese-cased).
+–  multi_label_classification: 32 saídas com sigmoide + BCEWithLogitsLoss.
+–  max_length = 192; lr = 5e-5; treino em GPU RTX 3060.
+•  Comum aos dois:
+–  rótulos multi-hot (MultiLabelBinarizer); split 70/15/15 estratificado iterativo (seed 42).
+–  limiar por tema ajustado na validação (não 0,50 fixo).
+–  Métrica principal: macro-F1 (2 cortes) + micro-F1.
+[NOTAS DO APRESENTADOR]
+Comparamos dois modelos no mesmo conjunto. O baseline e TF-IDF com regressao logistica, um por tema. O modelo profundo e o BERTimbau ajustado: como e multirrotulo, a saida tem 32 neuronios com sigmoide e perda BCE — cada tema e um sim/nao independente. Os dois usam o mesmo split estratificado e o mesmo ajuste de limiar por tema, para uma comparacao justa. A figura mostra o fluxo: ementa → tokenizacao → BERTimbau → [CLS] → cabeca → sigmoide → vetor 0/1. Metrica: macro-F1. (~1min30)
+
+======================================================================
+### SLIDE 6
+======================================================================
+[CORPO/TÍTULO]
+5 · RESULTADOS
+[CORPO/TÍTULO]
+Experimento principal: BERTimbau vs. baseline
+[TABELA]
+Modelo (limiar ajustado) | macro-F1
+(32) | macro-F1
+(≥200) | micro-F1
+Baseline (limiar 0,50) | 0,567 | 0,620 | 0,650
+Baseline TF-IDF + LogReg | 0,584 | 0,639 | 0,675
+BERTimbau (limiar 0,50) | 0,601 | 0,687 | 0,724
+BERTimbau | 0,632 | 0,700 | 0,723
+[CORPO/TÍTULO]
+•  BERTimbau supera o baseline: macro-F1 (≥200) 0,639 → 0,700 (+0,061).
+•  O ajuste de limiar por tema ajuda principalmente o macro-F1.
+•  Baseline e competitivo: ementas são curtas, formais e ricas em termos indicativos do tema.
+[CORPO/TÍTULO]
+Suporte por tema: verde ≥ 200, vermelho = cauda longa.
+[NOTAS DO APRESENTADOR]
+Resultado central na tabela. Com limiar ajustado, o BERTimbau bate o baseline em todas as metricas — destaque para o macro-F1 nos temas com suporte maior, que vai de 0,639 para 0,700. Mas o baseline e competitivo: como a ementa e curta e cheia de termos indicativos, o TF-IDF ja captura muito sinal. A figura a direita mostra a cauda longa que justifica reportar dois cortes de macro-F1. (~1min)
+
+======================================================================
+### SLIDE 7
+======================================================================
+[CORPO/TÍTULO]
+5 · RESULTADOS
+[CORPO/TÍTULO]
+Diferencial: domain shift e "fala vs. faz"
+[CORPO/TÍTULO]
+•  Modelo (treinado em ementas) aplicado a 46.683 discursos de 488 deputados, sem novo treino.
+–  Discursos longos → chunking em janelas de 192 tokens, agregando por máximo.
+•  Domain shift: macro-F1 (≥200) cai de 0,700 (ementas) → 0,569 (discursos).
+–  Sobre-rotulação: 5,92 temas/discurso previstos vs. 3,43 da referência (alta revocação, baixa precisão).
+•  "Fala vs. faz": cruzamos agenda discursiva x legislativa por deputado e partido.
+–  Ex.: Pastor Eurico fala muito de cultura/religião; Altineu Cortes propõe mais em direito penal.
+–  Analise exploratória e agregada (rotulo de discurso e ruidoso sob domain shift).
+[CORPO/TÍTULO]
+Agenda discursiva (Y) x legislativa (X) por deputado.
+[NOTAS DO APRESENTADOR]
+O diferencial. Pegamos o modelo treinado em ementas e aplicamos em 46 mil discursos, sem retreinar. Como discurso e longo, quebramos em janelas e agregamos. Resultado esperado: cai de 0,700 para 0,569 — isso e domain shift. O modelo super-rotula, marca quase 6 temas por discurso contra 3,4 da referencia. Mesmo assim, cruzamos o que cada deputado fala com o que propoe — uma lente exploratoria, nao um veredito sobre coerencia. (~1min30)
+
+======================================================================
+### SLIDE 8
+======================================================================
+[CORPO/TÍTULO]
+6 · DISCUSSAO
+[CORPO/TÍTULO]
+Resolveu o problema? Quais os limites?
+[CORPO/TÍTULO]
+•  Sim, como ferramenta de apoio:
+–  macro-F1 0,700 nos temas bem representados → útil para sugerir temas, busca e estatísticas agregadas.
+–  Não substitui o especialista — uso recomendado com humano no circuito.
+•  Limites:
+–  cauda longa: 4 temas com pouquíssimos exemplos (F1 ~ 0).
+–  subjetividade do próprio rotulo do CEDI (anotadores podem divergir de boa-fé).
+–  domain shift nos discursos: queda de desempenho + sobre rotulação.
+–  avaliação dos discursos por amostra rotulada por LLM (vieses) e cobertura de 88,2% dos autores.
+[NOTAS DO APRESENTADOR]
+O modelo resolve o problema como apoio: nos temas com dados suficientes chega a 0,700 de macro-F1, bom para sugerir temas e gerar estatisticas — mas com humano no circuito, nao como decisao final. Os limites sao honestos: cauda longa, a propria subjetividade do rotulo, o domain shift nos discursos e o fato de a avaliacao dos discursos ter sido por amostra rotulada por LLM. (~1min)
+
+======================================================================
+### SLIDE 9
+======================================================================
+[CORPO/TÍTULO]
+7 · CONCLUSAO
+[CORPO/TÍTULO]
+Qual a principal contribuição?
+[CORPO/TÍTULO]
+•  Pipeline completo e reprodutível para classificação multirrótulo de PLs:
+–  coleta própria (API) → baseline → fine-tuning do BERTimbau → avaliação critica.
+•  BERTimbau supera o baseline (macro-F1 0,700 nos temas ≥200)...
+–  ...mas o baseline TF-IDF e competitivo em textos curtos e padronizados como ementas.
+•  Principal diferencial: estudo de domain shift
+–  aplicar o modelo a discursos mostrou, na pratica, a perda de desempenho entre domínios.
+–  E habilitou a analise exploratória "fala vs. faz" da atuação parlamentar.
+[NOTAS DO APRESENTADOR]
+Concluindo: entregamos um pipeline completo e reprodutivel, da coleta propria ate a avaliacao critica. O BERTimbau vence, mas o baseline e competitivo em texto curto — uma licao importante. E a nossa maior contribuicao foi mostrar o domain shift na pratica e abrir a analise fala-versus-faz. (~45s)
+
+======================================================================
+### SLIDE 10
+======================================================================
+[CORPO/TÍTULO]
+8 · PROXIMOS PASSOS
+[CORPO/TÍTULO]
+Como aprimorar e aplicar em escala?
+[CORPO/TÍTULO]
+•  Reduzir a sobre-rotulação nos discursos:
+–  trocar a agregação por máximo por media/ponderada e recalibrar limiares por domínio.
+•  Adaptação de domínio:
+–  domain-adaptive pretraining (Gururangan et al., 2020) em textos legislativos antes do fine-tuning.
+•  Modelos mais recentes:
+–  testar Albertina PT-BR (Rodrigues et al., 2023) e comparar com o BERTimbau.
+•  Validação e escala:
+–  ampliar a validação com anotadores humanos; integrar como apoio ao CEDI e ao portal da Câmara.
+[NOTAS DO APRESENTADOR]
+Como melhorias: primeiro atacar a sobre-rotulacao dos discursos, mudando a agregacao e recalibrando limiares. Depois, adaptacao de dominio, continuando o pre-treino em textos legislativos. Testar modelos mais novos como o Albertina. E, para escala, validacao humana e integracao como ferramenta de apoio ao CEDI. Obrigado! Perguntas? (~45s)

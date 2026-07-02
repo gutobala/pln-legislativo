@@ -9,10 +9,14 @@ metodologia → resultados → **segundo experimento** → **bônus: sentimentos
 conclusão → próximos passos), ligando cada etapa conceitual à fase técnica correspondente do
 código (notebooks `01`–`08`). Para instalação e
 execução, ver o [`GUIA_EXECUCAO.md`](GUIA_EXECUCAO.md). O **relatório completo** (artigo) está em
-[`docs/Relatorio_Projeto_Final.docx`](docs/Relatorio_Projeto_Final.docx). Para **testar a
+[`docs/Relatorio_Projeto_Final.docx`](docs/Relatorio_Projeto_Final.docx), e os **slides da
+apresentação** (PDF) em [`docs/PLN_Legislativo.pdf`](docs/PLN_Legislativo.pdf). Para **testar a
 classificação** de uma ementa rapidamente, use o notebook
 [`07_teste_classificador.ipynb`](07_teste_classificador.ipynb) (carrega o modelo e classifica
 exemplos) — ou a página "Classificador de ementas" no app.
+
+> 🎧 **Resumo em áudio** — *podcast* gerado no **NotebookLM** a partir do relatório:
+> [ouvir no Google Drive](https://drive.google.com/drive/folders/1xPtGB7ffuFGXfDUZGokpLQogRAC_kNQt).
 
 ---
 
